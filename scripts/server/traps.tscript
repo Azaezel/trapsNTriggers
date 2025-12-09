@@ -155,7 +155,7 @@ function trapData::onTripDone(%this,%obj)
 // ============================================================================== 
 function boomBarrel::damage(%this, %obj, %sourceObject, %position, %damage, %damageType)
 {
-   if ((!isObject(%obj) || !%damage) || %obj.getDamageState() !$= "Enabled")
+   if ((!isObject(%obj) || !%damage) || %obj.getDamageState() $= "Destroyed")
       return;
 
    //note that if an objet has an animation labeled "damage"
@@ -170,33 +170,51 @@ function boomBarrel::damage(%this, %obj, %sourceObject, %position, %damage, %dam
    
    //apply an impulse based on how much damage it took
    //and how much force it would take to move that much mass
-   %impulseVec = vectorScale(%impulseVec, (%damage / %this.maxDamage) * (%this.mass*32));
+   %impulseVec = vectorScale(%impulseVec, (%damage / %this.maxDamage) * (%this.mass*100));
    %obj.applyImpulse(%position,%impulseVec );
    
    //if we've taken more than the destroyed level, explode, then delete ourselves
    //do note you *must* ensure you flip the damage state over to destroyed 
    // to avoid an infinite recursion
-   if (%obj.getDamageState() $= "Enabled" && %obj.getDamageLevel()>%this.destroyedLevel)
+   if (%obj.getDamageState() !$= "Destroyed" && %obj.getDamageLevel()>%this.destroyedLevel)
    {
-        %obj.blowUp();
-        //radiusDamage(%sourceObject, %position, %radius, %damage, %damageType, %impulse)
         %obj.setDamageState("Destroyed");
-        radiusDamage(%obj, %obj.position, 10, 50, "explosion", 1000);
-        %obj.schedule(32, "delete");
    }
 }
 
 function boomBarrel::onImpact(%this, %obj, %collObj, %vec, %len )
 {
-   if ((!isObject(%obj) || %obj.getDamageState() !$= "Enabled"))
+   if ((!isObject(%obj) || %obj.getDamageState() $= "Destroyed"))
       return;
       
     //echo(%this SPC %obj SPC %collObj SPC %vec SPC %len );
     %dmgPos = VectorAdd(%obj.getPosition(), %vec);
-    %dmgAmt = getMin(%len/%this.minImpactSpeed, %this.mass/%this.maxDamage);
+    %dmgAmt = getMin(%len/%this.minImpactSpeed, %this.maxDamage/%this.mass);
     
-    if (%dmgAmt>2)
+    if (%dmgAmt>1)
         %this.damage(%obj, %collObj, %dmgPos, %dmgAmt, "impact");
+}
+
+function boomBarrel::onCollision(%this, %obj, %collObj, %vec, %len )
+{
+   if ((!isObject(%obj) || %obj.getDamageState() $= "Destroyed"))
+      return;
+      
+    //echo(%this SPC %obj SPC %collObj SPC %vec SPC %len );
+    %dmgPos = VectorAdd(%obj.getPosition(), %vec);
+    %dmgAmt = getMin(%len/%this.minImpactSpeed, %this.maxDamage/%this.mass);
+    
+    if (%dmgAmt>1)
+        %this.damage(%obj, %collObj, %dmgPos, %dmgAmt, "collision");
+}
+
+function boomBarrel::onDestroyed(%this, %obj, %state)
+{
+    %obj.startFade(0, 0, true);
+    %obj.blowUp();
+    //radiusDamage(%sourceObject, %position, %radius, %damage, %damageType, %impulse)
+    radiusDamage(%obj, %obj.position, 20, 25, "explosion", 1000);
+    %obj.schedule(32, "delete");
 }
 
 // ============================================================================== 
